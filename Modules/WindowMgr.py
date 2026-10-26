@@ -1,5 +1,5 @@
 WINDOWMGR_VERSION="00003A"
-import win32gui, win32com.client, win32con, winxpgui, win32api, ctypes
+import win32gui, win32com.client, win32con, win32api, ctypes
 from os import system
 from time import sleep
 from re import match
@@ -132,12 +132,3 @@ class WindowMgr:
             win32gui.SetWindowPos(self._handle,win32con.HWND_NOTOPMOST,0,0,win_w,win_h,0)
             #print("將視窗"+wildcard+"設為非上層視窗\n視窗width: "+str(win_w)+" 視窗height: "+str(win_h))
         sleep(0.5)
-
-    """ 半透明視窗(wildcard,alpha_val=180) """
-    ### 將目標視窗設為半透明狀態(alpha_val值範圍0-255) ###
-    def set_window_alpha(self, wildcard, alpha_val=180):
-        self.reset()
-        self.find_window_wildcard(wildcard)
-        self.set_foreground()
-        win32gui.SetWindowLong (self._handle, win32con.GWL_EXSTYLE, win32gui.GetWindowLong (self._handle, win32con.GWL_EXSTYLE ) | win32con.WS_EX_LAYERED )
-        winxpgui.SetLayeredWindowAttributes(self._handle, win32api.RGB(0,0,0), alpha_val, win32con.LWA_ALPHA)

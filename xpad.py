@@ -46,9 +46,6 @@ if __name__ == "__main__":
                 sleep(DELAY_SECOND*10)
                 #exit(0)
         w=WindowMgr()
-        w.set_cmd_title("::XPAD::")
-        w.set_window_alpha("::XPAD::",alpha_val=200)
-        w.set_window_on_top("::XPAD::",win_w=350,win_h=200,set_top=True)
         #全域變數區.START
         from Modules.IniVariable import *
         keyboard = Controller()
