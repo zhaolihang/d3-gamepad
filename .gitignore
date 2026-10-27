@@ -18,5 +18,5 @@ Scripts/*
 *.csv
 *.xls
 .DS_Store
-XPAD-0009A/
+XPAD/
 tests/

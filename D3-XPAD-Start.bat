@@ -1,7 +1,7 @@
 @echo off
 title XPAD
 setlocal
-cd /d "%~dp0XPAD-0009A"
+cd /d "%~dp0XPAD"
 if errorlevel 1 (
     echo Cannot open the D3-XPAD program folder.
     pause

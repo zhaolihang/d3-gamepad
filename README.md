@@ -28,7 +28,7 @@
 
 ## 2. 下載與安裝移除 :: Download & Install
 
-D3-XPAD 執行目錄為 `XPAD-0009A`，可依下方編譯指令產生，裡面需要二個檔案:
+D3-XPAD 執行目錄為 `XPAD`，可依下方編譯指令產生，裡面需要二個檔案:
 
 * xpad.exe (主程式直接點兩下即可執行)
 * xinput.ini (搖桿對應設定檔，建議使用Notepad++編輯)
@@ -136,7 +136,7 @@ DEBUG_MODE=False
 
 實際 tick 頻率仍受 Windows 排程及處理負載影響。提高 `TICK_HZ` 會提高輸入取樣、光標更新、移動點擊與連發次數，光標每秒移動速度保持不變。
 
-執行原始碼可使用 `python xpad.py`。執行檔輸出至 `XPAD-0009A/xpad.exe`，使用同目錄下的 `xinput.ini`，不產生發佈 zip。本機可繼續使用 `D3-XPAD-Start.bat` 啟動，無需修改腳本。打包部署直接覆蓋，不額外建立備份；部署設定保留本機視窗標題與左搖桿移動鍵。
+執行原始碼可使用 `python xpad.py`。執行檔輸出至 `XPAD/xpad.exe`，使用同目錄下的 `xinput.ini`，不產生發佈 zip。本機可繼續使用已指向 `XPAD` 目錄的 `D3-XPAD-Start.bat` 啟動。打包部署直接覆蓋，不額外建立備份；部署設定保留本機視窗標題與左搖桿移動鍵。
 
 -----
 
@@ -214,7 +214,7 @@ DEBUG_MODE=False
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --distpath XPAD-0009A --workpath build\pyinstaller xpad.spec
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --distpath XPAD --workpath build\pyinstaller xpad.spec
 ```
 
 `xpad.spec` 使用專案相對路徑，與 `requirements-build.txt` 一起納入版本管理。`xinput.ini` 保持外置，不會被打包指令覆蓋；若執行目錄尚無設定檔，需從根目錄複製並依需求修改。
