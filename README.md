@@ -91,8 +91,8 @@ SET_LEFT_CONTROLLER_MOVE_AND_CLICK = True
 #設定左小搖桿控制滑鼠移動後會點的鍵，假如 SET_LEFT_CONTROLLER_MOVE_AND_CLICK 為 True
 LEFT_CONTROLLER_CLICK_VAL = "LM"
 
-#左搖桿光標落點距離的基準單位
-XY_OFFSET_UNIT=10
+#左搖桿光標距離視窗中心的固定半徑（像素）
+XY_OFFSET_UNIT=5
 #右搖桿固定光標速度（像素／秒），無持續推桿加速
 CURSOR_SPEED=600
 #按住 LT 時同時保留空白鍵映射並降低右搖桿光標速度
@@ -102,10 +102,11 @@ CURSOR_SLOW_MULTIPLIER=0.5
 
 #唯一的 tick 頻率（Hz），輸入、光標、移動點擊與 ON/OFF 連發都在此 tick 執行
 #可改為 120、180、240 等正數；滑鼠速度由 dt 換算，不隨頻率變快
-TICK_HZ=60
+TICK_HZ=180
 
-#Y軸中心點修正(基本上勿動)
-Y_CENTER_OFFSET=-(XY_OFFSET_UNIT*4)
+#Y軸中心點修正（像素；0 表示視窗正中心）
+#修改後需重啟程式生效
+Y_CENTER_OFFSET=-20
 
 #勿動BTN_DICT及BTN2_DICT
 BTN_DICT={ "A":0, "B":1, "X":2, "Y":3, "BACK":4, "START":5, "DPAD_UP":6, "DPAD_DOWN":7, "DPAD_LEFT":8, "DPAD_RIGHT":9, "LEFT_SHOULDER":10, "RIGHT_SHOULDER":11, "LEFT_TRIGER":12, "RIGHT_TRIGER":13 }
@@ -122,7 +123,7 @@ DEBUG_MODE=False
 1. 編輯此文件推薦使用Notepad++，如果用記事本編輯在存檔時需注意是否存為"utf-8"文件格式(不可為"Big5"或"utf-8 BOM"格式會出錯)。
 2. 只能更改KEY_CONFIG字典裡的值，例如: "A":"1" 改成 "A":"i"，這樣執行程式時按下搖桿A鍵就會模擬按下i鍵，只可修改值不可破壞格式。
 
-程式只有一個 `TICK_HZ`（預設 60，必須為有限正數）。每輪統一讀取單調時鐘，計算 `TickContext(time, dt, raw_dt, index)`，再呼叫 `tick(context)`。事件處理器可透過 `handler.global_var.tick.dt` 取得同一份 dt，其他邏輯直接使用傳入的 context。等待時間會扣除本輪處理耗時，延遲後沿原時間表前進，不累積時間漂移，也不集中補發過期操作。舊設定檔的 `LOOP_HZ` 或 `DELAY_SECOND` 只作為單一頻率的相容輸入，新設定優先使用 `TICK_HZ`。
+程式只有一個 `TICK_HZ`（預設 180，必須為有限正數）。每輪統一讀取單調時鐘，計算 `TickContext(time, dt, raw_dt, index)`，再呼叫 `tick(context)`。事件處理器可透過 `handler.global_var.tick.dt` 取得同一份 dt，其他邏輯直接使用傳入的 context。等待時間會扣除本輪處理耗時，延遲後沿原時間表前進，不累積時間漂移，也不集中補發過期操作。舊設定檔的 `LOOP_HZ` 或 `DELAY_SECOND` 只作為單一頻率的相容輸入，新設定優先使用 `TICK_HZ`。
 
 啟動時先檢查編號 0 的控制器；未連接時顯示一次提示並等待，偵測到連接後才進入 tick，等待期間也可按 Backspace 結束。tick 每輪呼叫一次 `XInputGetState` 同時取得輸入及連接狀態，不再額外查詢在線狀態；讀取時發現斷線會立即停止 tick、釋放按鍵並回到連接監測。重新連接後重置 tick 計時再繼續，等待時間不會算入 dt。連接提示只在狀態改變時輸出，不會每 tick 重複刷屏。
 
@@ -133,6 +134,10 @@ DEBUG_MODE=False
 按住 `CURSOR_SLOW_BUTTON` 時，右搖桿光標速度乘以 `CURSOR_SLOW_MULTIPLIER`（預設 0.5，即 300 像素／秒），鬆開立即恢復正常速度。預設使用 LT（設定檔沿用舊名稱 `LEFT_TRIGER`）：LT 超過原有觸發閾值後照常按住空白鍵，同時進入半速；鬆開時釋放空白鍵並恢復正常光標速度。LB 保留原本的 Esc，M4 與正面 Y 保留原本的數字 4。空字串表示停用半速功能，LT 仍保留空白鍵映射。
 
 可將半速鍵設為 RT（`RIGHT_TRIGER`），扳機作為半速鍵時仍保留 `KEY_CONFIG` 映射；也可指定普通按鈕，如空閒的 L3（`LEFT_THUMB`）、R3（`RIGHT_THUMB`），無需將 L3/R3 加入 `BTN_DICT`，普通按鈕作為半速鍵時會攔截其原映射。倍率必須大於 0 且不大於 1。半速只作用於右搖桿光標，左搖桿角色移動與點擊頻率保持原設定。退出組合鍵 LB+RB+X 仍可使用。
+
+左搖桿光標落點以視窗中心為圓心，沿推桿方向固定偏移 `XY_OFFSET_UNIT` 像素（預設 5）；座標取整到最近像素。`Y_CENTER_OFFSET` 預設為 -20，圓心固定向上修正 20 像素，與 5 像素半徑獨立設定。
+
+`Y_CENTER_OFFSET` 與其他設定均只在啟動時讀取，修改設定檔（通常是 `XPAD/xinput.ini`）後需重啟程式生效。負數向上、正數向下、0 為視窗中心。執行期間不檢查或重新讀取設定檔。
 
 實際 tick 頻率仍受 Windows 排程及處理負載影響。提高 `TICK_HZ` 會提高輸入取樣、光標更新、移動點擊與連發次數，光標每秒移動速度保持不變。
 

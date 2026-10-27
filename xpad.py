@@ -101,7 +101,7 @@ if __name__ == "__main__":
             if handler.global_var.in_active_win:
                 handler.global_var.win_pos_size=w.get_window_pos_size() #[x,y,w,h]
                 handler.global_var.x_center=int(handler.global_var.win_pos_size[0]+(handler.global_var.win_pos_size[2]/2))
-                handler.global_var.y_center=int(handler.global_var.win_pos_size[1]+(handler.global_var.win_pos_size[3]/2)+(Y_CENTER_OFFSET))
+                handler.global_var.y_center=int(handler.global_var.win_pos_size[1]+(handler.global_var.win_pos_size[3]/2)+global_var.y_center_offset)
                 #if DEBUG_MODE: print("LEFT STICK:",handler.global_var.stick_info[0])
                 try:
                     if handler.global_var.stick_info[0]["val"]!=0: #左小搖桿
@@ -113,8 +113,8 @@ if __name__ == "__main__":
                         # 處理滑鼠遊標是否移至畫面中心再隨LSTICK方向移動
                         if SET_LFET_CONTROLLER_BIND_CURSOR:
                             xx,yy=handler.deg_to_xy(handler.global_var.deg_dict,deg)
-                            target_pos = (handler.global_var.x_center+xx*handler.global_var.xy_offset_unit,
-                                          handler.global_var.y_center+yy*handler.global_var.xy_offset_unit)
+                            target_pos = (handler.global_var.x_center+xx,
+                                          handler.global_var.y_center+yy)
                             if Mouse.get_pos() != target_pos:
                                 Mouse.set_pos(*target_pos)
                             if SET_LEFT_CONTROLLER_MOVE_AND_CLICK:
