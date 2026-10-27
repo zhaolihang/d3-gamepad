@@ -7,9 +7,11 @@ foxModules/__pycache__/*
 Lib/*
 Scripts/*
 *.spec
+!/xpad.spec
 *.exe
 *.pyc
 *.txt
+!/requirements-build.txt
 *.cfg
 *.bat
 *.log
@@ -17,3 +19,4 @@ Scripts/*
 *.xls
 .DS_Store
 XPAD-0009A/
+tests/

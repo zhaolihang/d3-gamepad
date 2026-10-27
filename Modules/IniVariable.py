@@ -10,7 +10,10 @@ class IniVariable:
         self.stick_stat=[0,0]
         self.stick_degree=[0,0]
         self.xy_offset=None
-        self.xy_offset_bonus=0
+        self.buttons_down=set()
+        self.cursor_slow_button=""
+        self.tick=None
+        self.controller_connected=False
         self.onoff_list=[]
         self.deg_dict=None
         self.last_thumb_dict={"l_thumb_x":0,"l_thumb_y":0,"r_thumb_x":0,"r_thumb_y":0}

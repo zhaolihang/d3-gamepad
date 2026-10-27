@@ -28,15 +28,11 @@
 
 ## 2. 下載與安裝移除 :: Download & Install
 
-D3-XPAD下載點:
-
-[XPAD-0009A.zip](XPAD-0009A.zip)
-
-下載並解壓縮會得到一個 XPAD-0009A 資料夾，裡面有二個檔案:
+D3-XPAD 執行目錄為 `XPAD-0009A`，可依下方編譯指令產生，裡面需要二個檔案:
 
 * xpad.exe (主程式直接點兩下即可執行)
 * xinput.ini (搖桿對應設定檔，建議使用Notepad++編輯)
-本軟體無需安裝，將下載完成解壓縮的資料夾放到桌面(或好找的路徑)即完成部署。程式執行時不會修改電腦機碼，若要移除就是直接把主程式跟設定檔刪除即可。
+本軟體無需安裝，將執行目錄放到桌面(或好找的路徑)即完成部署。程式執行時不會修改電腦機碼，若要移除就是直接把主程式跟設定檔刪除即可。
 
 ### xinput.ini 設定檔內容
 
@@ -95,12 +91,18 @@ SET_LEFT_CONTROLLER_MOVE_AND_CLICK = True
 #設定左小搖桿控制滑鼠移動後會點的鍵，假如 SET_LEFT_CONTROLLER_MOVE_AND_CLICK 為 True
 LEFT_CONTROLLER_CLICK_VAL = "LM"
 
-#左右小搖桿控制滑鼠位移的一單位(像素)(基本上勿動)
+#左搖桿光標落點距離的基準單位
 XY_OFFSET_UNIT=10
-CURSOR_MOVE_UNIT=3
+#右搖桿固定光標速度（像素／秒），無持續推桿加速
+CURSOR_SPEED=600
+#按住 LT 時同時保留空白鍵映射並降低右搖桿光標速度
+#LEFT_TRIGER=LT，RIGHT_TRIGER=RT；設為 "" 可停用半速
+CURSOR_SLOW_BUTTON="LEFT_TRIGER"
+CURSOR_SLOW_MULTIPLIER=0.5
 
-#延時設定(基本上勿動)
-DELAY_SECOND=0.05
+#唯一的 tick 頻率（Hz），輸入、光標、移動點擊與 ON/OFF 連發都在此 tick 執行
+#可改為 120、180、240 等正數；滑鼠速度由 dt 換算，不隨頻率變快
+TICK_HZ=60
 
 #Y軸中心點修正(基本上勿動)
 Y_CENTER_OFFSET=-(XY_OFFSET_UNIT*4)
@@ -119,6 +121,22 @@ DEBUG_MODE=False
 修改 xinput.ini 注意事項:
 1. 編輯此文件推薦使用Notepad++，如果用記事本編輯在存檔時需注意是否存為"utf-8"文件格式(不可為"Big5"或"utf-8 BOM"格式會出錯)。
 2. 只能更改KEY_CONFIG字典裡的值，例如: "A":"1" 改成 "A":"i"，這樣執行程式時按下搖桿A鍵就會模擬按下i鍵，只可修改值不可破壞格式。
+
+程式只有一個 `TICK_HZ`（預設 60，必須為有限正數）。每輪統一讀取單調時鐘，計算 `TickContext(time, dt, raw_dt, index)`，再呼叫 `tick(context)`。事件處理器可透過 `handler.global_var.tick.dt` 取得同一份 dt，其他邏輯直接使用傳入的 context。等待時間會扣除本輪處理耗時，延遲後沿原時間表前進，不累積時間漂移，也不集中補發過期操作。舊設定檔的 `LOOP_HZ` 或 `DELAY_SECOND` 只作為單一頻率的相容輸入，新設定優先使用 `TICK_HZ`。
+
+啟動時先檢查編號 0 的控制器；未連接時顯示一次提示並等待，偵測到連接後才進入 tick，等待期間也可按 Backspace 結束。tick 每輪呼叫一次 `XInputGetState` 同時取得輸入及連接狀態，不再額外查詢在線狀態；讀取時發現斷線會立即停止 tick、釋放按鍵並回到連接監測。重新連接後重置 tick 計時再繼續，等待時間不會算入 dt。連接提示只在狀態改變時輸出，不會每 tick 重複刷屏。
+
+手把狀態在 tick 裡直接輪詢，不建立輸入執行緒。方向鍵、普通按鍵與扳機僅在狀態變化時發送按下／鬆開；連續改變扳機力度不會重複發送按下。左搖桿持續更新光標目標，位置相同時不重複設定光標；持續推桿時，每 tick 執行一次移動點擊／設定的移動按鍵。啟用 ON/OFF 的每個操作也每 tick 執行一次按下＋鬆開，因此它們的頻率隨 `TICK_HZ` 變化，沒有獨立的 60 Hz 設定。
+
+右搖桿以 `CURSOR_SPEED` 指定固定速度（預設 600 像素／秒），超過死區後不隨持續推桿時間或推桿幅度加速，斜向也維持相同總速度；位移只使用 tick 傳入的 `dt` 並保留不足一像素的餘數。回中或切換視窗時清除餘數。tick 統一將 dt 限制為最多 0.1 秒，避免卡頓後光標跳躍；實際未截斷的時間可從 `context.raw_dt` 取得。舊設定檔的 `CURSOR_MOVE_UNIT` 仍可換算為固定速度（乘 20），若同時設定則優先使用 `CURSOR_SPEED`。光標落點半徑與方向判定不需要乘 `dt`。
+
+按住 `CURSOR_SLOW_BUTTON` 時，右搖桿光標速度乘以 `CURSOR_SLOW_MULTIPLIER`（預設 0.5，即 300 像素／秒），鬆開立即恢復正常速度。預設使用 LT（設定檔沿用舊名稱 `LEFT_TRIGER`）：LT 超過原有觸發閾值後照常按住空白鍵，同時進入半速；鬆開時釋放空白鍵並恢復正常光標速度。LB 保留原本的 Esc，M4 與正面 Y 保留原本的數字 4。空字串表示停用半速功能，LT 仍保留空白鍵映射。
+
+可將半速鍵設為 RT（`RIGHT_TRIGER`），扳機作為半速鍵時仍保留 `KEY_CONFIG` 映射；也可指定普通按鈕，如空閒的 L3（`LEFT_THUMB`）、R3（`RIGHT_THUMB`），無需將 L3/R3 加入 `BTN_DICT`，普通按鈕作為半速鍵時會攔截其原映射。倍率必須大於 0 且不大於 1。半速只作用於右搖桿光標，左搖桿角色移動與點擊頻率保持原設定。退出組合鍵 LB+RB+X 仍可使用。
+
+實際 tick 頻率仍受 Windows 排程及處理負載影響。提高 `TICK_HZ` 會提高輸入取樣、光標更新、移動點擊與連發次數，光標每秒移動速度保持不變。
+
+執行原始碼可使用 `python xpad.py`。執行檔輸出至 `XPAD-0009A/xpad.exe`，使用同目錄下的 `xinput.ini`，不產生發佈 zip。本機可繼續使用 `D3-XPAD-Start.bat` 啟動，無需修改腳本。打包部署直接覆蓋，不額外建立備份；部署設定保留本機視窗標題與左搖桿移動鍵。
 
 -----
 
@@ -190,8 +208,19 @@ DEBUG_MODE=False
 ## 7. 參考資源 :: References
 
 ### xpad.py 編譯參考資料
+
+在專案根目錄使用 PowerShell 執行（目前以 Python 3.14 驗證）：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --distpath XPAD-0009A --workpath build\pyinstaller xpad.spec
+```
+
+`xpad.spec` 使用專案相對路徑，與 `requirements-build.txt` 一起納入版本管理。`xinput.ini` 保持外置，不會被打包指令覆蓋；若執行目錄尚無設定檔，需從根目錄複製並依需求修改。
+
 * resource url: https://github.com/Zuzu-Typ/XInput-Python
-* 需安裝的套件 pypiwin32 XInput-Python pynput==1.6.8
+* 建置與執行依賴版本見 `requirements-build.txt`；XInput 模組已包含在 `Modules` 中
 * 要在win7能正常運作需把XInput.py裡第140~145行註解掉
 
 ### D3官網對於家機搖桿的設置參考

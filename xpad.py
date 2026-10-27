@@ -1,7 +1,7 @@
 # 需安裝的套件 pypiwin32 pynput==1.6.8
 # 0009A : 把程式改成兼容 PoE2 WASD 輸入的搖桿設定，並修正一個小Bug(有時進到遊戲時程式會閃退，用try ... except pass的笨方法避掉此問題)
 
-XPAD_VERSION="D3-GAMEPAD-2025-10-06"
+XPAD_VERSION="XPAD-2026-10-27"
 
 from time import sleep
 from Modules.XInput import DEADZONE_TRIGGER,set_deadzone,get_connected
@@ -13,6 +13,20 @@ from traceback import extract_tb
 from sys import argv,exc_info,exit
 from msvcrt import kbhit,getch
 from math import pi,sin,cos,atan2
+from Modules.LoopTimer import LoopTimer
+from Modules.InputTiming import tick_interval, cursor_settings, CursorMotion, DirectionKeys
+
+
+def wait_for_controller(notified=False):
+    while not get_connected()[0]:
+        if not notified:
+            print("未偵測到控制器，請接上支援的遊戲搖桿。", flush=True)
+            notified = True
+        if kbhit() and getch() == chr(8).encode():
+            exit(0)
+        sleep(0.1)
+    print("已偵測到控制器，手柄已連接。", flush=True)
+
 
 if __name__ == "__main__":
     try:
@@ -24,27 +38,19 @@ if __name__ == "__main__":
             tmp_content=f.read()
         f.close()
         exec(tmp_content)
+        interval = tick_interval(globals())
+        cursor_speed, cursor_slow_button, cursor_slow_multiplier = cursor_settings(globals())
 
         set_deadzone(DEADZONE_TRIGGER,int(XY_OFFSET_UNIT))
         
-        while 1:
-            controller1=get_connected()
-            if(controller1[0]==True):
-                print("-----------------------------------------")
-                print(f"{ACTIVE_WIN_TITLE} Gamepad 程式運作")
-                print("在此視窗中按下 [←Backspace] 可關閉程式")
-                print("或在遊戲中同時按住控制器:")
-                print("LEFT_SHOULDER+RIGHT_SHOULDER+X一秒關閉程式")
-                print("程式版本:"+XPAD_VERSION)
-                print("監控視窗:"+ACTIVE_WIN_TITLE)
-                print("-----------------------------------------")
-                break
-            else:
-                errStr="未偵測到控制器，請接上支援的遊戲搖桿。"
-                print(errStr,end="")
-                print("\b"*120,end="", flush=True)
-                sleep(DELAY_SECOND*10)
-                #exit(0)
+        print("-----------------------------------------")
+        print(f"{ACTIVE_WIN_TITLE} Gamepad 程式運作")
+        print("在此視窗中按下 [←Backspace] 可關閉程式")
+        print("或在遊戲中同時按住控制器:")
+        print("LEFT_SHOULDER+RIGHT_SHOULDER+X一秒關閉程式")
+        print("程式版本:"+XPAD_VERSION)
+        print("監控視窗:"+ACTIVE_WIN_TITLE)
+        print("-----------------------------------------")
         w=WindowMgr()
         #全域變數區.START
         from Modules.IniVariable import *
@@ -55,10 +61,11 @@ if __name__ == "__main__":
         global_var.deg_dict=global_var.gent_degree_dict(360,int(XY_OFFSET_UNIT))
         global_var.active_win_title=ACTIVE_WIN_TITLE
         global_var.key_config=KEY_CONFIG
+        global_var.cursor_slow_button=cursor_slow_button
         global_var.set_left_controller_move_and_click=SET_LEFT_CONTROLLER_MOVE_AND_CLICK
         global_var.left_controller_click_val =LEFT_CONTROLLER_CLICK_VAL
         global_var.xy_offset_unit =XY_OFFSET_UNIT
-        global_var.delay_second =DELAY_SECOND
+        global_var.delay_second =interval
         global_var.y_center_offset =Y_CENTER_OFFSET
         global_var.btn_dict =BTN_DICT
         global_var.btn2_dict =BTN2_DICT
@@ -68,17 +75,20 @@ if __name__ == "__main__":
         global_var.keys_stat_last=[False,False,False,False,False,False,False,False,False,False,False,False,False,False]
         global_var.current_onoff=[0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         global_var.in_active_win=False
-        global_var.elapsed_time=0
-        global_var.stick_info=[{},{}]
-        global_var.current_direction=[]
+        global_var.stick_info=[{"val":0},{"val":0}]
         #全域變數區.END
         from Modules.MyHandler import *
         handler = MyHandler(0,global_var_obj=global_var) # initialize handler object
-        thread = GamepadThread(handler)                 # initialize controller thread
-        while 1:
-            global_var.elapsed_time+=1
-            #print(global_var.elapsed_time)
-            if handler.global_var.keys_stat_last[2]==True and handler.global_var.keys_stat_last[10]==True and handler.global_var.keys_stat_last[11]==True:
+        direction_keys = DirectionKeys(keyboard, LSTICK_DICT)
+        cursor_motion = CursorMotion(cursor_speed)
+        def tick(context):
+            global_var.tick = context
+            handler.global_var.in_active_win = ((ACTIVE_WIN_TITLE != "" and ACTIVE_WIN_TITLE in w.active_window_title())
+                                               or ACTIVE_WIN_TITLE == "")
+            handler.poll(context)
+            if not global_var.controller_connected:
+                return False
+            if {"X", "LEFT_SHOULDER", "RIGHT_SHOULDER"}.issubset(handler.global_var.buttons_down):
                 #按下LEFT_SHOULDER+RIGHT_SHOULDER+X 強制結束程式，結束前要先把已經按下的key全都release
                 for i in range(0,len(handler.global_var.keys_stat_last)):
                     if handler.global_var.keys_stat_last[i]==True: #目前是按下狀態
@@ -88,8 +98,7 @@ if __name__ == "__main__":
             if kbhit() and getch() == chr(8).encode():
                 exit(0)
             #判斷當前視窗完整標題文字是否包含 ACTIVE_WIN_TITLE 設定之文字，若是才繼續後續處理...
-            if (ACTIVE_WIN_TITLE!="" and ACTIVE_WIN_TITLE in w.active_window_title()) or ACTIVE_WIN_TITLE=="":
-                handler.global_var.in_active_win=True
+            if handler.global_var.in_active_win:
                 handler.global_var.win_pos_size=w.get_window_pos_size() #[x,y,w,h]
                 handler.global_var.x_center=int(handler.global_var.win_pos_size[0]+(handler.global_var.win_pos_size[2]/2))
                 handler.global_var.y_center=int(handler.global_var.win_pos_size[1]+(handler.global_var.win_pos_size[3]/2)+(Y_CENTER_OFFSET))
@@ -99,124 +108,52 @@ if __name__ == "__main__":
                         deg=int(atan2(handler.global_var.stick_info[0]["x"],handler.global_var.stick_info[0]["y"])/pi*180)
                         if deg<0: deg=180+(180+deg)
                         if DEBUG_MODE: print(f"LeftStickDeg:{deg}")
-                        if deg<10 or deg>350:
-                            if "up" not in handler.global_var.current_direction: handler.global_var.current_direction.append("up")
-                            keyboard.press(LSTICK_DICT["up"])
-                            for i in handler.global_var.current_direction:
-                                if i != "up": 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.up)
-                        elif deg >9 and deg<80:
-                            if "up" not in handler.global_var.current_direction: handler.global_var.current_direction.append("up")
-                            if "right" not in handler.global_var.current_direction: handler.global_var.current_direction.append("right")
-                            keyboard.press(LSTICK_DICT["up"])
-                            keyboard.press(LSTICK_DICT["right"])
-                            for i in handler.global_var.current_direction:
-                                if i not in ["up","right"]: 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.up)
-                            #keyboard.release(Key.right)
-                        elif deg >79 and deg<100:
-                            if "right" not in handler.global_var.current_direction: handler.global_var.current_direction.append("right")
-                            keyboard.press(LSTICK_DICT["right"])
-                            for i in handler.global_var.current_direction:
-                                if i != "right": 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.right)
-                        elif deg >99 and deg<170:
-                            if "down" not in handler.global_var.current_direction: handler.global_var.current_direction.append("down")
-                            if "right" not in handler.global_var.current_direction: handler.global_var.current_direction.append("right")
-                            keyboard.press(LSTICK_DICT["down"])
-                            keyboard.press(LSTICK_DICT["right"])
-                            for i in handler.global_var.current_direction:
-                                if i not in ["down","right"]: 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.down)
-                            #keyboard.release(Key.right)
-                        elif deg >169 and deg<190:
-                            if "down" not in handler.global_var.current_direction: handler.global_var.current_direction.append("down")
-                            keyboard.press(LSTICK_DICT["down"])
-                            for i in handler.global_var.current_direction:
-                                if i != "down": 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.down)
-                        elif deg >189 and deg<260:
-                            if "down" not in handler.global_var.current_direction: handler.global_var.current_direction.append("down")
-                            if "left" not in handler.global_var.current_direction: handler.global_var.current_direction.append("left")
-                            keyboard.press(LSTICK_DICT["down"])
-                            keyboard.press(LSTICK_DICT["left"])
-                            for i in handler.global_var.current_direction:
-                                if i not in ["down","left"]: 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.down)
-                            #keyboard.release(Key.left)
-                        elif deg >259 and deg<280:
-                            if "left" not in handler.global_var.current_direction: handler.global_var.current_direction.append("left")
-                            keyboard.press(LSTICK_DICT["left"])
-                            for i in handler.global_var.current_direction:
-                                if i != "left": 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.left)
-                        else:
-                            if "up" not in handler.global_var.current_direction: handler.global_var.current_direction.append("up")
-                            if "left" not in handler.global_var.current_direction: handler.global_var.current_direction.append("left")
-                            keyboard.press(LSTICK_DICT["up"])
-                            keyboard.press(LSTICK_DICT["left"])
-                            for i in handler.global_var.current_direction:
-                                if i not in ["up","left"]: 
-                                    keyboard.release(LSTICK_DICT[i])
-                                    handler.global_var.current_direction.remove(i)
-                            #keyboard.release(Key.up)
-                            #keyboard.release(Key.left)
+                        direction_keys.update(deg)
                         handler.global_var.stick_degree[0]=deg
                         # 處理滑鼠遊標是否移至畫面中心再隨LSTICK方向移動
                         if SET_LFET_CONTROLLER_BIND_CURSOR:
                             xx,yy=handler.deg_to_xy(handler.global_var.deg_dict,deg)
-                            Mouse.set_pos(handler.global_var.x_center+xx*handler.global_var.xy_offset_unit,handler.global_var.y_center+yy*handler.global_var.xy_offset_unit)
-                            if SET_LEFT_CONTROLLER_MOVE_AND_CLICK==True:
+                            target_pos = (handler.global_var.x_center+xx*handler.global_var.xy_offset_unit,
+                                          handler.global_var.y_center+yy*handler.global_var.xy_offset_unit)
+                            if Mouse.get_pos() != target_pos:
+                                Mouse.set_pos(*target_pos)
+                            if SET_LEFT_CONTROLLER_MOVE_AND_CLICK:
                                 handler.kb_press_eval_key(LEFT_CONTROLLER_CLICK_VAL)
                                 handler.kb_release_eval_key(LEFT_CONTROLLER_CLICK_VAL)
                             #if DEBUG_MODE: print("LEFT STICK:",xx,yy)
                     else:
-                        #pass
-                        handler.current_direction={}
-                        for i in handler.global_var.current_direction:
-                            keyboard.release(LSTICK_DICT[i])
-                            handler.global_var.current_direction.remove(i)
+                        direction_keys.update(None)
                 except:
                     pass
                 try:
                     if handler.global_var.stick_info[1]["val"]!=0: #右小搖桿
-                        if handler.global_var.xy_offset_bonus<50: handler.global_var.xy_offset_bonus+=0.5
-                        xx=round((handler.global_var.stick_info[1]["dir"][0])*CURSOR_MOVE_UNIT)
-                        yy=-(round((handler.global_var.stick_info[1]["dir"][1])*CURSOR_MOVE_UNIT))
-                        #print(xx,yy)
-                        if xx!=0:
-                            xx=int(xx+handler.global_var.xy_offset_bonus) if xx>0 else int(xx-handler.global_var.xy_offset_bonus)
-                        if yy!=0:
-                            yy=int(yy+handler.global_var.xy_offset_bonus) if yy>0 else int(yy-handler.global_var.xy_offset_bonus)
-                        Mouse.move_to(xx,yy) #移動滑鼠
+                        speed_multiplier = cursor_slow_multiplier if cursor_slow_button in handler.global_var.buttons_down else 1.0
+                        move_x, move_y = cursor_motion.step(handler.global_var.stick_info[1]["dir"], context.dt, speed_multiplier)
+                        if move_x or move_y:
+                            Mouse.move_to(move_x, move_y)
                     else:
-                        handler.global_var.xy_offset_bonus=0
-                        #print("RIGT STICK REST")
+                        cursor_motion.reset()
                 except:
                     pass
-                if len(handler.global_var.onoff_list)>0 and global_var.elapsed_time%int(DELAY_SECOND*23)==0:
-                    #print("ONOFF",global_var.elapsed_time)
+                if len(handler.global_var.onoff_list)>0:
                     for i in handler.global_var.onoff_list:
                         handler.kb_press_eval_key(i)
                         handler.kb_release_eval_key(i)
             else:
-                handler.global_var.in_active_win=False
-            sleep(DELAY_SECOND)
-            #print(handler.global_var.onoff_list)
+                direction_keys.update(None)
+                cursor_motion.reset()
+            return True
+
+        waiting_notified = False
+        while True:
+            wait_for_controller(notified=waiting_notified)
+            global_var.controller_connected = True
+            loop_timer = LoopTimer(interval)
+            while tick(loop_timer.wait()):
+                pass
+            direction_keys.update(None)
+            cursor_motion.reset()
+            waiting_notified = True
     except Exception as e:
         error_class = e.__class__.__name__ #取得錯誤類型
         detail = e.args[0] #取得詳細內容

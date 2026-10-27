@@ -7,8 +7,6 @@ from ctypes import Structure, POINTER
 
 from math import sqrt
 
-import time
-
 from threading import Thread, Lock
 
 
@@ -164,8 +162,6 @@ _last_states = (State(), State(), State(), State())
 _last_norm_values = [None, None, None, None]
 
 _connected = [False, False, False, False]
-
-_last_checked = 0
 
 _deadzones = [{DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
                DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
@@ -398,35 +394,25 @@ class Event:
     def __str__(self):
         return str(self.__dict__)
         
-def get_events():
-    """get_events() -> generator
+def get_events(controllers=None):
+    """get_events(controllers=None) -> generator
 Returns a generator that yields events for each change that
 occured since this function was last called.
+Only the selected controller indices are sampled; None selects all four.
 Each event has a <type> and <user_index> associated.
 The other variables vary."""
-    global _last_states, _connected, _last_checked, _button_dict, _last_norm_values
-    this_time = time.time()
-    these_states = (State(), State(), State(), State())
-    if _last_checked + 1 < this_time:
-        _last_checked = this_time
-        for i in range(4):
-            is_connected = (XInputGetState(i, these_states[i]) == 0)
-            if is_connected != _connected[i]:
-                yield Event(i, EVENT_CONNECTED if is_connected else EVENT_DISCONNECTED)
-                _connected[i] = is_connected
-    else:
-        for i in range(4):
-            was_connected = _connected[i]
-            if not was_connected:
-                continue
-            is_connected = (XInputGetState(i, these_states[i]) == 0)
+    global _last_states, _connected, _button_dict, _last_norm_values
+    indices = tuple(range(4) if controllers is None else controllers)
+    these_states = list(_last_states)
+    # Sample selected controllers once per application tick; no separate rescan clock.
+    for i in indices:
+        these_states[i] = State()
+        is_connected = (XInputGetState(i, these_states[i]) == 0)
+        if is_connected != _connected[i]:
+            yield Event(i, EVENT_CONNECTED if is_connected else EVENT_DISCONNECTED)
+            _connected[i] = is_connected
 
-            if not is_connected:
-                yield Event(i, EVENT_DISCONNECTED)
-                _connected[i] = False
-                continue
-
-    for i in range(4):
+    for i in indices:
         is_connected = _connected[i]
         if not is_connected: continue
 
